@@ -14,9 +14,9 @@ def list_notes(current_user: Optional[dict] = Depends(get_current_user)):
         notes = []
         for doc in db.collection("notes").stream():
             doc_dict = doc.to_dict()
-            visibility = doc_dict.get("visibility", "public")
+            visible = doc_dict.get("visible", True)
             
-            if visibility == "private" and (not current_user or current_user["type"] != "admin"):
+            if not visible and (not current_user or current_user["type"] != "admin"):
                 continue
             
             note_data = {
@@ -25,7 +25,7 @@ def list_notes(current_user: Optional[dict] = Depends(get_current_user)):
                 "description": doc_dict.get("description"),
                 "tags": doc_dict.get("tags", []),
                 "locked": doc_dict.get("locked", False),
-                "visibility": visibility,
+                "visible": visible,
                 "created_at": doc_dict.get("created_at"),
                 "updated_at": doc_dict.get("updated_at")
             }
@@ -42,8 +42,8 @@ def get_note(note_id: str, current_user: Optional[dict] = Depends(get_current_us
             raise HTTPException(status_code=404, detail="Note not found")
         doc_dict = doc.to_dict()
         
-        visibility = doc_dict.get("visibility", "public")
-        if visibility == "private" and (not current_user or current_user["type"] != "admin"):
+        visible = doc_dict.get("visible", True)
+        if not visible and (not current_user or current_user["type"] != "admin"):
             raise HTTPException(status_code=403, detail="Access denied")
         
         note_data = {
@@ -54,7 +54,7 @@ def get_note(note_id: str, current_user: Optional[dict] = Depends(get_current_us
             "tags": doc_dict.get("tags", []),
             "terms": doc_dict.get("terms", {}),
             "locked": doc_dict.get("locked", False),
-            "visibility": visibility,
+            "visible": visible,
             "created_at": doc_dict.get("created_at"),
             "updated_at": doc_dict.get("updated_at")
         }
@@ -67,7 +67,7 @@ def get_note(note_id: str, current_user: Optional[dict] = Depends(get_current_us
 @router.post("")
 def create_note(note: NoteCreate, current_user: dict = Depends(require_auth)):
     try:
-        if current_user["type"] not in ["admin", "preview"]:
+        if current_user["type"] != "admin":
             raise HTTPException(status_code=403, detail="Access denied")
         
         now = datetime.datetime.utcnow()
@@ -78,7 +78,7 @@ def create_note(note: NoteCreate, current_user: dict = Depends(require_auth)):
             "tags": note.tags,
             "terms": note.terms,
             "locked": False,
-            "visibility": note.visibility,
+            "visible": note.visible,
             "created_at": now,
             "updated_at": now
         }
@@ -102,7 +102,7 @@ def update_note(note_id: str, note: NoteUpdate, current_user: dict = Depends(req
         if doc_dict.get("locked", False) and current_user["type"] != "admin":
             raise HTTPException(status_code=403, detail="Note is locked")
 
-        if current_user["type"] not in ["admin", "preview"]:
+        if current_user["type"] != "admin":
             raise HTTPException(status_code=403, detail="Access denied")
 
         update_data = {}
@@ -136,7 +136,7 @@ def delete_note(note_id: str, current_user: dict = Depends(require_auth)):
         if not doc.exists:
             raise HTTPException(status_code=404, detail="Note not found")
 
-        if current_user["type"] not in ["admin", "preview"]:
+        if current_user["type"] != "admin":
             raise HTTPException(status_code=403, detail="Access denied")
 
         doc_ref.delete()
@@ -155,7 +155,7 @@ def update_note_settings(note_id: str, settings: NoteVisibilityUpdate, current_u
         if not doc.exists:
             raise HTTPException(status_code=404, detail="Note not found")
 
-        update_data = {"visibility": settings.visibility}
+        update_data = {"visible": settings.visible}
         if settings.locked is not None:
             update_data["locked"] = settings.locked
         
