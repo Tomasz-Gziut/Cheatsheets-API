@@ -16,9 +16,14 @@ app.add_middleware(
 )
 
 
-@app.api_route("/", methods=["GET", "HEAD"])
+@app.get("/")
 def health_check():
     return {"status": "ok"}
+
+
+@app.head("/")
+def health_check_head():
+    return
 
 
 app.include_router(login_router)
