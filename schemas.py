@@ -22,7 +22,7 @@ class NoteCreate(BaseModel):
     tags: list
     terms: dict
     locked: bool = False
-    visibility: str = "public"
+    visible: bool = True
 
 class NoteUpdate(BaseModel):
     title: str = None
@@ -31,8 +31,8 @@ class NoteUpdate(BaseModel):
     tags: list = None
     terms: dict = None
     locked: bool = None
-    visibility: str = None
+    visible: bool = None
 
 class NoteVisibilityUpdate(BaseModel):
-    visibility: str
+    visible: bool
     locked: bool = None

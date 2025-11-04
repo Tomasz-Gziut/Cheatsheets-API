@@ -2,7 +2,7 @@ import datetime
 import jwt
 import bcrypt
 from typing import Optional
-from fastapi import HTTPException, Header
+from fastapi import HTTPException, Header, Cookie
 
 from config import SECRET_KEY, ALGORITHM, TOKEN_EXPIRE_HOURS
 
@@ -23,21 +23,41 @@ def verify_token(token: str) -> dict:
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
-async def get_current_user(authorization: Optional[str] = Header(None)) -> Optional[dict]:
-    if not authorization:
+async def get_current_user(authorization: Optional[str] = Header(None), access_token: Optional[str] = Cookie(None)) -> Optional[dict]:
+    token = None
+    
+    if access_token:
+        token = access_token
+    elif authorization:
+        try:
+            token = authorization.split(" ")[1]
+        except:
+            pass
+    
+    if not token:
         return None
+    
     try:
-        token = authorization.split(" ")[1]
         payload = verify_token(token)
         return {"id": payload["sub"], "type": payload["type"]}
     except:
         return None
 
-async def require_auth(authorization: Optional[str] = Header(None)) -> dict:
-    if not authorization:
-        raise HTTPException(status_code=401, detail="Missing authorization header")
+async def require_auth(authorization: Optional[str] = Header(None), access_token: Optional[str] = Cookie(None)) -> dict:
+    token = None
+    
+    if access_token:
+        token = access_token
+    elif authorization:
+        try:
+            token = authorization.split(" ")[1]
+        except:
+            pass
+    
+    if not token:
+        raise HTTPException(status_code=401, detail="Missing authorization header or token cookie")
+    
     try:
-        token = authorization.split(" ")[1]
         payload = verify_token(token)
         return {"id": payload["sub"], "type": payload["type"]}
     except:

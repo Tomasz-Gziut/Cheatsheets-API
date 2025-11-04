@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import JSONResponse
 from firebase_admin.firestore import FieldFilter
 
 from config import db
@@ -26,14 +27,37 @@ def login(credentials: UserLogin):
         user_type = user_data.get("type", "none")
         token = create_token(user_doc.id, user_type)
         
-        return {
+        created_at = user_data.get("created_at")
+        response_data = {
             "id": user_doc.id,
             "login": user_data["login"],
             "type": user_type,
-            "token": token,
-            "created_at": user_data.get("created_at")
+            "created_at": created_at.isoformat() if created_at else None
         }
+        
+        response = JSONResponse(content=response_data)
+        response.set_cookie(
+            key="access_token",
+            value=token,
+            httponly=True,
+            secure=True,
+            samesite="lax",
+            max_age=86400
+        )
+        
+        return response
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/logout")
+def logout():
+    response = JSONResponse(content={"message": "Logged out successfully"})
+    response.delete_cookie(
+        key="access_token",
+        secure=True,
+        httponly=True,
+        samesite="lax"
+    )
+    return response
