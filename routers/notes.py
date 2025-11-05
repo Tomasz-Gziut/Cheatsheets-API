@@ -1,4 +1,5 @@
 import datetime
+import re
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends
 
@@ -7,6 +8,27 @@ from auth import get_current_user, require_auth, require_admin
 from schemas import NoteCreate, NoteUpdate, NoteVisibilityUpdate
 
 router = APIRouter(prefix="/notes", tags=["notes"])
+
+def generate_slug(title: str) -> str:
+    slug = title.lower()
+    slug = re.sub(r'[^\w\s-]', '', slug)
+    slug = re.sub(r'[\s_]+', '-', slug)
+    slug = re.sub(r'-+', '-', slug)
+    slug = slug.strip('-')
+    return slug
+
+def find_unique_slug(base_slug: str) -> str:
+    existing_docs = db.collection("notes").where("slug", "==", base_slug).stream()
+    if not list(existing_docs):
+        return base_slug
+    
+    counter = 2
+    while True:
+        new_slug = f"{base_slug}-{counter}"
+        existing_docs = db.collection("notes").where("slug", "==", new_slug).stream()
+        if not list(existing_docs):
+            return new_slug
+        counter += 1
 
 @router.get("")
 def list_notes(current_user: Optional[dict] = Depends(get_current_user)):
@@ -24,7 +46,7 @@ def list_notes(current_user: Optional[dict] = Depends(get_current_user)):
                 "title": doc_dict.get("title"),
                 "description": doc_dict.get("description"),
                 "tags": doc_dict.get("tags", []),
-                "locked": doc_dict.get("locked", False),
+                "slug": doc_dict.get("slug"),
                 "visible": visible,
                 "created_at": doc_dict.get("created_at"),
                 "updated_at": doc_dict.get("updated_at")
@@ -53,7 +75,7 @@ def get_note(note_id: str, current_user: Optional[dict] = Depends(get_current_us
             "content": doc_dict.get("content"),
             "tags": doc_dict.get("tags", []),
             "terms": doc_dict.get("terms", {}),
-            "locked": doc_dict.get("locked", False),
+            "slug": doc_dict.get("slug"),
             "visible": visible,
             "created_at": doc_dict.get("created_at"),
             "updated_at": doc_dict.get("updated_at")
@@ -70,6 +92,9 @@ def create_note(note: NoteCreate, current_user: dict = Depends(require_auth)):
         if current_user["type"] != "admin":
             raise HTTPException(status_code=403, detail="Access denied")
         
+        base_slug = generate_slug(note.title)
+        unique_slug = find_unique_slug(base_slug)
+        
         now = datetime.datetime.utcnow()
         note_data = {
             "title": note.title,
@@ -77,7 +102,7 @@ def create_note(note: NoteCreate, current_user: dict = Depends(require_auth)):
             "content": note.content,
             "tags": note.tags,
             "terms": note.terms,
-            "locked": False,
+            "slug": unique_slug,
             "visible": note.visible,
             "created_at": now,
             "updated_at": now
@@ -98,16 +123,14 @@ def update_note(note_id: str, note: NoteUpdate, current_user: dict = Depends(req
         if not doc.exists:
             raise HTTPException(status_code=404, detail="Note not found")
 
-        doc_dict = doc.to_dict()
-        if doc_dict.get("locked", False) and current_user["type"] != "admin":
-            raise HTTPException(status_code=403, detail="Note is locked")
-
         if current_user["type"] != "admin":
             raise HTTPException(status_code=403, detail="Access denied")
 
         update_data = {}
         if note.title is not None:
             update_data["title"] = note.title
+            base_slug = generate_slug(note.title)
+            update_data["slug"] = find_unique_slug(base_slug)
         if note.description is not None:
             update_data["description"] = note.description
         if note.content is not None:
@@ -156,9 +179,6 @@ def update_note_settings(note_id: str, settings: NoteVisibilityUpdate, current_u
             raise HTTPException(status_code=404, detail="Note not found")
 
         update_data = {"visible": settings.visible}
-        if settings.locked is not None:
-            update_data["locked"] = settings.locked
-        
         update_data["updated_at"] = datetime.datetime.utcnow()
         doc_ref.update(update_data)
 
