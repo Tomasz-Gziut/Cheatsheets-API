@@ -41,6 +41,9 @@ def list_notes(current_user: Optional[dict] = Depends(get_current_user)):
             if not visible and (not current_user or current_user["type"] != "admin"):
                 continue
             
+            created_at = doc_dict.get("created_at")
+            updated_at = doc_dict.get("updated_at")
+            
             note_data = {
                 "id": doc.id,
                 "title": doc_dict.get("title"),
@@ -48,8 +51,8 @@ def list_notes(current_user: Optional[dict] = Depends(get_current_user)):
                 "tags": doc_dict.get("tags", []),
                 "slug": doc_dict.get("slug"),
                 "visible": visible,
-                "created_at": doc_dict.get("created_at"),
-                "updated_at": doc_dict.get("updated_at")
+                "created_at": created_at.strftime("%Y-%m-%dT%H:%M") if created_at else None,
+                "updated_at": updated_at.strftime("%Y-%m-%dT%H:%M") if updated_at else None
             }
             notes.append(note_data)
         return notes
@@ -68,6 +71,9 @@ def get_note(note_id: str, current_user: Optional[dict] = Depends(get_current_us
         if not visible and (not current_user or current_user["type"] != "admin"):
             raise HTTPException(status_code=403, detail="Access denied")
         
+        created_at = doc_dict.get("created_at")
+        updated_at = doc_dict.get("updated_at")
+        
         note_data = {
             "id": doc.id,
             "title": doc_dict.get("title"),
@@ -77,8 +83,8 @@ def get_note(note_id: str, current_user: Optional[dict] = Depends(get_current_us
             "terms": doc_dict.get("terms", {}),
             "slug": doc_dict.get("slug"),
             "visible": visible,
-            "created_at": doc_dict.get("created_at"),
-            "updated_at": doc_dict.get("updated_at")
+            "created_at": created_at.strftime("%Y-%m-%dT%H:%M") if created_at else None,
+            "updated_at": updated_at.strftime("%Y-%m-%dT%H:%M") if updated_at else None
         }
         return note_data
     except HTTPException:
@@ -108,7 +114,10 @@ def create_note(note: NoteCreate, current_user: dict = Depends(require_auth)):
             "updated_at": now
         }
         doc_ref = db.collection("notes").add(note_data)
-        return {"id": doc_ref[1].id, **note_data}
+        response_data = note_data.copy()
+        response_data["created_at"] = now.strftime("%Y-%m-%dT%H:%M")
+        response_data["updated_at"] = now.strftime("%Y-%m-%dT%H:%M")
+        return {"id": doc_ref[1].id, **response_data}
     except HTTPException:
         raise
     except Exception as e:
@@ -144,7 +153,12 @@ def update_note(note_id: str, note: NoteUpdate, current_user: dict = Depends(req
             update_data["updated_at"] = datetime.datetime.utcnow()
             doc_ref.update(update_data)
 
-        return {"id": note_id, **doc_ref.get().to_dict()}
+        result = doc_ref.get().to_dict()
+        if "created_at" in result and result["created_at"]:
+            result["created_at"] = result["created_at"].strftime("%Y-%m-%dT%H:%M")
+        if "updated_at" in result and result["updated_at"]:
+            result["updated_at"] = result["updated_at"].strftime("%Y-%m-%dT%H:%M")
+        return {"id": note_id, **result}
     except HTTPException:
         raise
     except Exception as e:
@@ -182,7 +196,12 @@ def update_note_settings(note_id: str, settings: NoteVisibilityUpdate, current_u
         update_data["updated_at"] = datetime.datetime.utcnow()
         doc_ref.update(update_data)
 
-        return {"id": note_id, **doc_ref.get().to_dict()}
+        result = doc_ref.get().to_dict()
+        if "created_at" in result and result["created_at"]:
+            result["created_at"] = result["created_at"].strftime("%Y-%m-%dT%H:%M")
+        if "updated_at" in result and result["updated_at"]:
+            result["updated_at"] = result["updated_at"].strftime("%Y-%m-%dT%H:%M")
+        return {"id": note_id, **result}
     except HTTPException:
         raise
     except Exception as e:

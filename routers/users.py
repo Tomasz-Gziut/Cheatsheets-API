@@ -11,8 +11,15 @@ router = APIRouter(prefix="/users", tags=["users"])
 @router.get("")
 def list_users(current_user: dict = Depends(require_admin)):
     try:
-        users = db.collection("users").stream()
-        return [{"id": doc.id, **doc.to_dict()} for doc in users]
+        users = []
+        for doc in db.collection("users").stream():
+            user_data = doc.to_dict()
+            if "created_at" in user_data and user_data["created_at"]:
+                user_data["created_at"] = user_data["created_at"].strftime("%Y-%m-%dT%H:%M")
+            if "updated_at" in user_data and user_data["updated_at"]:
+                user_data["updated_at"] = user_data["updated_at"].strftime("%Y-%m-%dT%H:%M")
+            users.append({"id": doc.id, **user_data})
+        return users
     except HTTPException:
         raise
     except Exception as e:
@@ -27,15 +34,18 @@ def create_user(user: UserCreate, current_user: dict = Depends(require_admin)):
 
         hashed_password = hash_password(user.password)
 
+        now = datetime.datetime.utcnow()
         user_data = {
             "login": user.login,
             "password": hashed_password,
             "type": user.type,
-            "created_at": datetime.datetime.utcnow()
+            "created_at": now
         }
 
         doc_ref = db.collection("users").add(user_data)
-        return {"id": doc_ref[1].id, **user_data}
+        response_data = user_data.copy()
+        response_data["created_at"] = now.strftime("%Y-%m-%dT%H:%M")
+        return {"id": doc_ref[1].id, **response_data}
     except HTTPException:
         raise
     except Exception as e:
@@ -62,7 +72,12 @@ def update_user(user_id: str, user: UserUpdate, current_user: dict = Depends(req
             update_data["updated_at"] = datetime.datetime.utcnow()
             doc_ref.update(update_data)
 
-        return {"id": user_id, **doc_ref.get().to_dict()}
+        result = doc_ref.get().to_dict()
+        if "created_at" in result and result["created_at"]:
+            result["created_at"] = result["created_at"].strftime("%Y-%m-%dT%H:%M")
+        if "updated_at" in result and result["updated_at"]:
+            result["updated_at"] = result["updated_at"].strftime("%Y-%m-%dT%H:%M")
+        return {"id": user_id, **result}
     except HTTPException:
         raise
     except Exception as e:
