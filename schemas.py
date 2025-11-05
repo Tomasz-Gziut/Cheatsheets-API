@@ -21,7 +21,6 @@ class NoteCreate(BaseModel):
     content: str
     tags: list
     terms: dict
-    locked: bool = False
     visible: bool = True
 
 class NoteUpdate(BaseModel):
@@ -30,9 +29,7 @@ class NoteUpdate(BaseModel):
     content: str = None
     tags: list = None
     terms: dict = None
-    locked: bool = None
     visible: bool = None
 
 class NoteVisibilityUpdate(BaseModel):
     visible: bool
-    locked: bool = None
